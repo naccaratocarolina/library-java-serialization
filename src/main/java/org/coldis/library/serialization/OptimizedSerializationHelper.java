@@ -296,12 +296,28 @@ public class OptimizedSerializationHelper {
 		// missed, which makes the security gate reject otherwise valid cross-class deserializations
 		// when a DTO carries fields the Model doesn't declare. Register them explicitly so the
 		// receiver can fall through to a placeholder instead of failing.
-		final Class<?>[] unknownPlaceholders = { org.apache.fory.serializer.UnknownClass.UnknownEnum.class,
-				org.apache.fory.serializer.UnknownClass.UnknownEnum1DArray, org.apache.fory.serializer.UnknownClass.UnknownEnum2DArray,
-				org.apache.fory.serializer.UnknownClass.UnknownEnum3DArray, org.apache.fory.serializer.UnknownClass.UnknownEmptyStruct.class,
-				org.apache.fory.serializer.UnknownClass.UnknownEmptyStruct1DArray, org.apache.fory.serializer.UnknownClass.UnknownEmptyStruct2DArray,
-				org.apache.fory.serializer.UnknownClass.UnknownEmptyStruct3DArray, org.apache.fory.serializer.UnknownClass.UnknownStruct1DArray,
-				org.apache.fory.serializer.UnknownClass.UnknownStruct2DArray, org.apache.fory.serializer.UnknownClass.UnknownStruct3DArray };
+		// Note: The array placeholder fields (UnknownEnum1DArray, etc.) were removed in Fory 1.x.
+		// We use reflection to detect them so this code stays compatible with both 0.x and 1.x.
+		final Set<Class<?>> unknownPlaceholders = new HashSet<>();
+		unknownPlaceholders.add(org.apache.fory.serializer.UnknownClass.UnknownEnum.class);
+		unknownPlaceholders.add(org.apache.fory.serializer.UnknownClass.UnknownEmptyStruct.class);
+		unknownPlaceholders.add(org.apache.fory.serializer.UnknownClass.UnknownStruct.class);
+		// Try to add array placeholders via reflection (only present in Fory 0.x).
+		final String[] arrayFieldNames = { "UnknownEnum1DArray", "UnknownEnum2DArray", "UnknownEnum3DArray",
+				"UnknownEmptyStruct1DArray", "UnknownEmptyStruct2DArray", "UnknownEmptyStruct3DArray",
+				"UnknownStruct1DArray", "UnknownStruct2DArray", "UnknownStruct3DArray" };
+		for (final String fieldName : arrayFieldNames) {
+			try {
+				final java.lang.reflect.Field field = org.apache.fory.serializer.UnknownClass.class.getField(fieldName);
+				final Object value = field.get(null);
+				if (value instanceof Class<?>) {
+					unknownPlaceholders.add((Class<?>) value);
+				}
+			}
+			catch (final NoSuchFieldException | IllegalAccessException ignored) {
+				// Field not present in this Fory version — expected for Fory 1.x.
+			}
+		}
 		for (final Class<?> placeholder : unknownPlaceholders) {
 			try {
 				fory.register(placeholder);
@@ -415,13 +431,16 @@ public class OptimizedSerializationHelper {
 				final String preferredName = preferredNames.get(clazz);
 				final String fallbackName = clazz.getName();
 				try {
-					fory.register(clazz, "", preferredName);
+					// Use two-arg register() which splits FQN into namespace.typeName automatically.
+					// The three-arg register(Class, namespace, typeName) in Fory 1.x rejects typeName
+					// containing '.' even when namespace is empty, breaking our FQN-based registration.
+					fory.register(clazz, preferredName);
 					OptimizedSerializationHelper.LOGGER.debug("Registered {} under name '{}' (scope={}).", clazz.getName(), preferredName, scope);
 				}
 				catch (final IllegalArgumentException conflict) {
 					if (!fallbackName.equals(preferredName)) {
 						try {
-							fory.register(clazz, "", fallbackName);
+							fory.register(clazz, fallbackName);
 							OptimizedSerializationHelper.LOGGER.warn("Registered {} under FQN after preferred name '{}' was taken: {}", clazz.getName(),
 									preferredName, conflict.getMessage());
 						}
