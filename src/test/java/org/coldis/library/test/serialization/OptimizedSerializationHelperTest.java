@@ -235,15 +235,12 @@ public class OptimizedSerializationHelperTest {
 	 */
 	@Test
 	public void testRegistrationConstraints() throws Exception {
-		// Test that registering same class twice with different names fails.
 		final Fory dualName = Fory.builder().registerGuavaTypes(false).withLanguage(Language.JAVA).withCompatibleMode(CompatibleMode.COMPATIBLE)
 				.requireClassRegistration(true).build();
 		dualName.register(DtoTestObject.class, "shared", "TestObj");
-		// In Fory 1.x, the two-arg register() splits the FQN automatically.
 		Assertions.assertThrows(IllegalArgumentException.class,
 				() -> dualName.register(DtoTestObject.class, DtoTestObject.class.getName()));
 
-		// Test that two different classes cannot share the same registration name.
 		final Fory sharedName = Fory.builder().registerGuavaTypes(false).withLanguage(Language.JAVA).withCompatibleMode(CompatibleMode.COMPATIBLE)
 				.requireClassRegistration(true).build();
 		sharedName.register(DtoTestObject.class, "shared.Conflict");
@@ -426,7 +423,6 @@ public class OptimizedSerializationHelperTest {
 		final String parentFqn = org.coldis.library.test.serialization.crossproc.hierarchy.model.HierarchyAbstractLog.class.getName();
 		final String leafName = "coldis.test.hierarchy.BusinessLog";
 
-		// Use two-arg register() for FQN-based names (Fory 1.x splits automatically).
 		producer.register(org.coldis.library.test.serialization.crossproc.hierarchy.dto.HierarchyAbstractLogDto.class, parentFqn);
 		producer.register(org.coldis.library.test.serialization.crossproc.hierarchy.dto.HierarchyBusinessLogDto.class, "coldis.test.hierarchy", "BusinessLog");
 		producer.register(org.coldis.library.test.serialization.crossproc.hierarchy.model.HierarchyLogType.class);
